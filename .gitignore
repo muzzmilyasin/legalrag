@@ -1,0 +1,17 @@
+# Virtual environment
+venv/
+
+# API keys
+.env
+
+# ChromaDB vector store (regenerated from your docs)
+db/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
