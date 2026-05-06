@@ -9,6 +9,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_community.retrievers import BM25Retriever
+from langchain_classic.retrievers import EnsembleRetriever
 
 load_dotenv()
 
@@ -18,6 +20,7 @@ app = Flask(__name__, static_folder="static")
 embedding_model = None
 db = None
 llm = None
+bm25_retriever = None
 chat_history = []
 
 
@@ -55,7 +58,7 @@ def favicon():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    global db, chat_history
+    global db, bm25_retriever, chat_history
 
     if "pdf" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
@@ -87,19 +90,33 @@ def upload():
         breakpoint_threshold_amount=70
     )
     chunks = splitter.split_documents(documents)
-    db = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        collection_metadata={"hnsw:space": "cosine"}
-    )
-    chat_history = []  # reset on new document
 
-    return jsonify({"message": f"Processed {len(chunks)} chunks from {file.filename}"})
+    embeddings = get_embedding_model()
+    if db is None:
+        # First upload — create a fresh collection
+        db = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            collection_metadata={"hnsw:space": "cosine"}
+        )
+    else:
+        # Subsequent uploads — add to the existing collection
+        db.add_documents(chunks)
+
+    # Rebuild BM25 from ALL stored texts (all PDFs uploaded so far)
+    stored = db.get(include=["documents", "metadatas"])
+    bm25_retriever = BM25Retriever.from_texts(
+        texts=stored["documents"],
+        metadatas=stored["metadatas"]
+    )
+    bm25_retriever.k = 10
+
+    return jsonify({"message": f"Processed {len(chunks)} chunks from {file.filename}. Total chunks in DB: {len(stored['documents'])}"})
 
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    global db, chat_history
+    global db, bm25_retriever, chat_history
 
     if db is None:
         return jsonify({"error": "Please upload a PDF first"}), 400
@@ -122,8 +139,16 @@ def ask():
     else:
         search_query = query
 
-    # Retrieve and answer
-    docs = db.as_retriever(search_kwargs={"k": 6}).invoke(search_query)
+    # Hybrid retrieval: vector + BM25 ensemble
+    vector_retriever = db.as_retriever(search_kwargs={"k": 6})
+    if bm25_retriever is not None:
+        retriever = EnsembleRetriever(
+            retrievers=[vector_retriever, bm25_retriever],
+            weights=[0.7, 0.3]
+        )
+    else:
+        retriever = vector_retriever
+    docs = retriever.invoke(search_query)
     context = "\n\n".join([f"Document:\n{doc.page_content}" for doc in docs])
 
     answer_messages = [
