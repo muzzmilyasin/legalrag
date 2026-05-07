@@ -140,7 +140,7 @@ def ask():
         search_query = query
 
     # Hybrid retrieval: vector + BM25 ensemble
-    vector_retriever = db.as_retriever(search_kwargs={"k": 6})
+    vector_retriever = db.as_retriever(search_kwargs={"k": 10})
     if bm25_retriever is not None:
         retriever = EnsembleRetriever(
             retrievers=[vector_retriever, bm25_retriever],
@@ -160,9 +160,9 @@ def ask():
             "- Answer questions using the provided contract excerpts.\n"
             "- If a clause sounds legal but is actually harmful, flag it and explain why.\n"
             "- Tell the term number and name if available.\n"
-            "- Use bullet points to list risky clauses.\n"
-            "- Do not use ** in answers.\n"
+            "- IMPORTANT: Format your response beautifully using markdown. Use **bold text** for key terms, use bullet points, and write in short, readable paragraphs. Do NOT output a single massive paragraph.\n"
             "- Explain in simple language.\n"
+            "- Keep it brief.\n"
             "- If the answer is not in the context, say: 'This information is not available in the provided documents.'\n\n"
             "Contract context:\n" + context
         )),

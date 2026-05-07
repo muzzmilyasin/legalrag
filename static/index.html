@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Legal RAG Assistant</title>
     <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -134,6 +135,11 @@
             align-self: flex-start;
             border-bottom-left-radius: 4px;
         }
+        .message.assistant p { margin-bottom: 10px; }
+        .message.assistant p:last-child { margin-bottom: 0; }
+        .message.assistant ul, .message.assistant ol { margin-left: 24px; margin-bottom: 10px; }
+        .message.assistant li { margin-bottom: 4px; }
+        .message.assistant strong { color: #f9fafb; font-weight: 600; }
         .message.thinking {
             background: #111827;
             color: #6b7280;
@@ -278,7 +284,11 @@
 
         const div = document.createElement('div');
         div.className = `message ${role}`;
-        div.textContent = text;
+        if (role === 'assistant') {
+            div.innerHTML = marked.parse(text);
+        } else {
+            div.textContent = text;
+        }
         container.appendChild(div);
         container.scrollTop = container.scrollHeight;
         return div;
